@@ -1,20 +1,16 @@
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import TRAIN_DATALOADERS 
-from transformers import DetrModelForObjectDetection
+import pytorch_lightning as pl 
+from transformers import DeformableDetrForObjectDetection
 import torch
 
-class Detr(pl.LightningModule):
-    def __init__(self, lr, lr_backbone, weight_decay, checkpoint, id2label, label2id):
+class DeformableDetr(pl.LightningModule):
+    def __init__(self, lr, lr_backbone, weight_decay, checkpoint, id2label):
         super().__init__()
         self.checkpoint = checkpoint
         self.id2label = id2label
-        self.label2id = label2id
-        self.model = DetrModelForObjectDetection.from_pretrained(pretrained_model_name_or_path = self.checkpoint,
-                                                            id2label = self.id2label,
-                                                            revision = "no_timm",
-                                                            num_labels = len(self.id2label),
-                                                            ignore_mismatched_sizes = True)
-        
+        self.model = DeformableDetrForObjectDetection.from_pretrained(pretrained_model_name_or_path = self.checkpoint,
+                                                    id2label = self.id2label,
+                                                    num_labels = len(self.id2label),
+                                                    ignore_mismatched_sizes = True)
         self.lr = lr
         self.lr_backbone = lr_backbone
         self.weight_decay = weight_decay
@@ -22,7 +18,7 @@ class Detr(pl.LightningModule):
     
     def forward(self, pixel_values, pixel_mask):
         return self.model(pixel_values = pixel_values, pixel_mask = pixel_mask)
-
+    
     def common_step(self, batch, batch_idx):
         pixel_values = batch["pixel_values"]
         pixel_mask = batch["pixel_mask"]
@@ -32,27 +28,34 @@ class Detr(pl.LightningModule):
         
         loss = outputs.loss
         loss_dict = outputs.loss_dict
-        logits = outputs.logits
         
-        return outputs
+        return loss, loss_dict
     
     def training_step(self, batch, batch_idx):
         loss, loss_dict = self.common_step(batch, batch_idx)
         
-        self.log("training_loss", loss, prog_bar = True)
-        for k,v in loss_dict.items():
-            self.log("train_" + k, v.item(), prog_bar = True)
+        if loss == 0:
+          return None
         
-        return loss
+        elif loss_dict == 0:
+            return None
+
+        else:  
+          self.log("training_loss", loss, prog_bar=True)
+          for k, v in loss_dict.items():
+              self.log("train_" + k, v.item(), prog_bar=True)
+            
+          return loss
     
     def validation_step(self, batch, batch_idx):
-        loss, loss_dict, outputs= self.common_step(batch, batch_idx)
-        self.log("validation_loss", loss, prog_bar = True)
-        for k,v in loss_dict.items():
-            self.log("validation_" + k, v.item())
+        loss, loss_dict = self.common_step(batch, batch_idx)
         
-        return outputs
-
+        self.log("validation_loss", loss, prog_bar=True)
+        for k,v in loss_dict.items():
+            self.log("validation_" + k, v.item(), prog_bar=True)
+            
+        return loss
+    
     def configure_optimizers(self):
         param_dicts = [
             {
@@ -63,11 +66,10 @@ class Detr(pl.LightningModule):
             }
         ]
         
-        return torch.optim.AdamW(param_dicts, lr = self.lr, weight_decay = self.weight_decay)
+        return torch.optim.AdamW(param_dicts, lr = self.lr, weight_decay= self.weight_decay)
     
     def train_dataloader(self):
-        return train_dataloader
+        return train_dataloader 
     
     def val_dataloader(self):
         return val_dataloader
-    
