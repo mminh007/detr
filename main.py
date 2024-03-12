@@ -5,9 +5,9 @@ from PIL import Image
 import json
 from pathlib import Path
 import torch
-from data import CocoDetection
-from detr import Detr
-from deformable_detr import DeformableDetr
+from dataset.data import CocoDetection
+from model.detr import Detr
+from model.deformable_detr import DeformableDetr
 from transformers import DeformableDetrImageProcessor, Trainer, DetrImageProcessor
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
